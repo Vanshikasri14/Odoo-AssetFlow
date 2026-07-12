@@ -96,7 +96,7 @@ export function UtilisationByDepartment({ data }: { data: DeptBar[] }) {
           cursor={{ fill: "currentColor", opacity: 0.04 }}
           content={<ChartTooltip unit="% of owned assets in use" />}
         />
-        <Bar dataKey="utilisation" radius={[3, 3, 0, 0]}>
+        <Bar dataKey="utilisation" radius={[3, 3, 0, 0]} isAnimationActive={false}>
           {rows.map((r) => (
             // Colour carries meaning, not decoration: red when a department has
             // nearly everything out and nothing spare.
@@ -133,6 +133,7 @@ export function MaintenanceFrequency({ data }: { data: MaintPoint[] }) {
           strokeWidth={2}
           dot={{ r: 3, fill: "#8b5cf6" }}
           activeDot={{ r: 5 }}
+          isAnimationActive={false}
         />
       </LineChart>
     </ResponsiveContainer>
