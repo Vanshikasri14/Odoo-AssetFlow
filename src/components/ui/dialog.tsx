@@ -34,6 +34,9 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
       }}
       className={cn(
         "m-auto w-full max-w-md rounded-lg border border-zinc-200 bg-white p-0 text-zinc-900 shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50",
+        "scale-95 opacity-0 open:scale-100 open:opacity-100 starting:open:scale-95 starting:open:opacity-0",
+        "[transition:opacity_0.2s_ease-out,transform_0.2s_ease-out,overlay_0.2s_ease-out_allow-discrete,display_0.2s_ease-out_allow-discrete]",
+        "backdrop:opacity-0 open:backdrop:opacity-100 starting:open:backdrop:opacity-0 backdrop:transition-opacity backdrop:duration-200",
         className,
       )}
     >
