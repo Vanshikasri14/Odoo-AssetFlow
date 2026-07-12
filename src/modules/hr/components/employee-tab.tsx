@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { assignDept, promote, toggleEmployee } from "../hr.actions";
+import { assignDept, promote, resetUserPassword, toggleEmployee } from "../hr.actions";
 import { ActivePill, Banner } from "./shared";
 
 type Employee = {
@@ -52,8 +52,11 @@ export function EmployeeTab({
   const [promoteState, promoteAction, promoting] = useActionState(promote, undefined);
   const [deptState, deptAction] = useActionState(assignDept, undefined);
   const [activeState, activeAction] = useActionState(toggleEmployee, undefined);
+  const [resetState, resetAction, resetting] = useActionState(resetUserPassword, undefined);
 
-  const banner = promoteState ?? deptState ?? activeState;
+  // The reset banner carries a one-time temporary password, so it wins: it must
+  // not be knocked off screen by a later "Department updated."
+  const banner = resetState ?? promoteState ?? deptState ?? activeState;
 
   return (
     <Card>
@@ -158,15 +161,29 @@ export function EmployeeTab({
                   </TableCell>
 
                   <TableCell>
-                    {!isMe && (
-                      <form action={activeAction} className="flex justify-end">
-                        <input type="hidden" name="userId" value={e.id} />
-                        <input type="hidden" name="active" value={String(!e.active)} />
-                        <Button type="submit" variant="ghost" size="sm">
-                          {e.active ? "Deactivate" : "Restore"}
-                        </Button>
-                      </form>
-                    )}
+                    <div className="flex items-center justify-end gap-1.5">
+                      {/* The admin half of the forgot-password flow: the user asks,
+                          the Admin resets, and the temporary password is shown
+                          once, here, to nobody else. */}
+                      {!isMe && e.active && (
+                        <form action={resetAction}>
+                          <input type="hidden" name="userId" value={e.id} />
+                          <Button type="submit" variant="ghost" size="sm" disabled={resetting}>
+                            Reset password
+                          </Button>
+                        </form>
+                      )}
+
+                      {!isMe && (
+                        <form action={activeAction}>
+                          <input type="hidden" name="userId" value={e.id} />
+                          <input type="hidden" name="active" value={String(!e.active)} />
+                          <Button type="submit" variant="ghost" size="sm">
+                            {e.active ? "Deactivate" : "Restore"}
+                          </Button>
+                        </form>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               );

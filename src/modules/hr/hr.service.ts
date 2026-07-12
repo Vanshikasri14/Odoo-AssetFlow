@@ -1,5 +1,7 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import { db, type Tx } from "@/lib/db";
+import { hashPassword } from "@/lib/auth";
 import { DomainError } from "@/modules/core/errors";
 import { logMessage, notify, MODEL } from "@/modules/core/chatter.service";
 import { ROLE_LABEL } from "@/lib/rbac";
@@ -340,6 +342,54 @@ export async function assignDepartment(
     });
     return user;
   });
+}
+
+/**
+ * Admin resets a user's password.
+ *
+ * Returns the temporary password ONCE, to the Admin who pressed the button. It
+ * is never stored in plaintext and never emailed — the Admin hands it over
+ * through whatever channel they already trust, and the user changes it.
+ *
+ * This is the other half of the forgot-password flow: the user asks
+ * (requestPasswordReset), the Admin acts. No reset tokens flying around, no
+ * link that would let anyone who knows an email address seize an account.
+ */
+export async function resetPassword(actorId: number, userId: number): Promise<string> {
+  const target = await db.resUsers.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true },
+  });
+  if (!target) throw new DomainError("That user no longer exists.", "USER_NOT_FOUND");
+
+  // Readable but unguessable: 4 words' worth of entropy in one token.
+  const temp = `af-${randomBytes(4).toString("hex")}-${randomBytes(2).toString("hex")}`;
+
+  await db.$transaction(async (tx) => {
+    await tx.resUsers.update({
+      where: { id: userId },
+      data: { password: await hashPassword(temp), writeUid: actorId },
+    });
+
+    await logMessage(tx, {
+      model: MODEL.USER,
+      resId: userId,
+      action: "reset_password",
+      // The password itself is NOT written to the log. Obviously.
+      body: `Password reset for ${target.name}.`,
+      authorId: actorId,
+    });
+
+    await notify(tx, {
+      userId,
+      type: "role_changed",
+      title: "Your password was reset",
+      body: "An administrator issued you a temporary password. Change it once you're back in.",
+      actionUrl: "/dashboard",
+    });
+  });
+
+  return temp;
 }
 
 export async function setUserActive(actorId: number, userId: number, active: boolean) {

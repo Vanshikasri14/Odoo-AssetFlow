@@ -9,8 +9,8 @@ import {
   destroySession,
   getCurrentUser,
 } from "@/lib/auth";
-import { logMessage, MODEL } from "@/modules/core/chatter.service";
-import { loginSchema, signupSchema, type AuthFormState } from "./auth.schema";
+import { logMessage, notifyMany, MODEL } from "@/modules/core/chatter.service";
+import { forgotSchema, loginSchema, signupSchema, type AuthFormState } from "./auth.schema";
 
 /**
  * Create an account.
@@ -118,6 +118,72 @@ export async function login(
 
   await createSession(user.id);
   redirect("/dashboard");
+}
+
+/**
+ * Forgot password.
+ *
+ * There is no mail server here, so the tempting shortcut is to mint a reset
+ * token and print the link on the page. That is an account-takeover hole: anyone
+ * who knows an email address could seize any account, including an Admin's — and
+ * it would flatly contradict the security model the rest of this app is built on.
+ *
+ * So we do what small organisations actually do: the request goes to the people
+ * who administer accounts. An Admin sees it in the Employee Directory, resets the
+ * password, and hands the temporary one over through a channel they trust.
+ *
+ * Note the response is IDENTICAL whether or not the account exists. Otherwise
+ * this form becomes an oracle for "who works here?".
+ */
+export async function requestPasswordReset(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const parsed = forgotSchema.safeParse({ login: String(formData.get("login") ?? "") });
+
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const user = await db.resUsers.findUnique({
+    where: { login: parsed.data.login },
+    select: { id: true, name: true, login: true, active: true },
+  });
+
+  if (user?.active) {
+    const admins = await db.resUsers.findMany({
+      where: { role: "admin", active: true },
+      select: { id: true },
+    });
+
+    await db.$transaction(async (tx) => {
+      const message = await logMessage(tx, {
+        model: MODEL.USER,
+        resId: user.id,
+        action: "request_password_reset",
+        body: `${user.name} requested a password reset.`,
+        authorId: user.id,
+      });
+
+      await notifyMany(
+        tx,
+        admins.map((a) => a.id),
+        {
+          type: "role_changed", // closest existing type; the copy carries the meaning
+          title: "Password reset requested",
+          body: `${user.name} (${user.login}) can't sign in. Reset it from the Employee Directory.`,
+          actionUrl: "/organization?tab=employees",
+          messageId: message.id,
+        },
+      );
+    });
+  }
+
+  // Same answer either way.
+  return {
+    error: undefined,
+    ok: "If that account exists, your administrator has been notified and will reset it for you.",
+  };
 }
 
 export async function logout() {

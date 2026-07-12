@@ -138,6 +138,31 @@ export async function assignDept(_prev: ActionState, formData: FormData): Promis
   );
 }
 
+/**
+ * Reset a user's password. Admin only.
+ *
+ * The temporary password comes back in `ok` and is shown to the Admin once. It
+ * is never logged, never emailed, never stored in plaintext.
+ */
+export async function resetUserPassword(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const me = await assertRole(ORG_ADMINS);
+
+  const userId = Number(formData.get("userId"));
+  if (!Number.isInteger(userId) || userId <= 0) return { error: "Invalid request." };
+
+  try {
+    const temp = await hr.resetPassword(me.id, userId);
+    revalidatePath("/organization");
+    return { ok: `Temporary password: ${temp} — give this to them directly. It won't be shown again.` };
+  } catch (e) {
+    if (e instanceof DomainError) return { error: e.message };
+    throw e;
+  }
+}
+
 export async function toggleEmployee(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const me = await assertRole(ORG_ADMINS);
 

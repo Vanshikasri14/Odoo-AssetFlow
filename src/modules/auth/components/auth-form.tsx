@@ -85,6 +85,14 @@ export function AuthForm({ mode, action }: Props) {
           <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-zinc-700">
             Password
           </label>
+          {!isSignup && (
+            <Link
+              href="/forgot-password"
+              className="float-right -mt-6 text-xs text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          )}
           <input
             id="password"
             name="password"

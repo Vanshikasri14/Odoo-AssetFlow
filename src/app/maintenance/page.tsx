@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/rbac";
 import * as maintenance from "@/modules/maintenance/maintenance.service";
 import { RaiseRequestDialog } from "@/modules/maintenance/components/raise-request-dialog";
-import { MaintenanceRequestsTable } from "@/modules/maintenance/components/maintenance-requests-table";
+import { MaintenanceKanban } from "@/modules/maintenance/components/maintenance-kanban";
 
 export default async function MaintenancePage() {
   const user = await requireUser();
@@ -25,7 +25,7 @@ export default async function MaintenancePage() {
         <RaiseRequestDialog assets={assets} />
       </div>
 
-      <MaintenanceRequestsTable requests={requests} technicians={technicians} currentUser={user} />
+      <MaintenanceKanban requests={requests} technicians={technicians} currentUser={user} />
     </div>
   );
 }

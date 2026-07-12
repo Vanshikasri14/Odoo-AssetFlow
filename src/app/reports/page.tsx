@@ -15,10 +15,15 @@ import {
   getBookingHeatmap,
   getDepartmentSummary,
   getMaintenanceByCategory,
+  getMaintenanceTrend,
   getProblemAssets,
   getUtilisation,
 } from "@/modules/analytics/reports.service";
 import { BookingHeatmap } from "@/modules/analytics/components/booking-heatmap";
+import {
+  MaintenanceFrequency,
+  UtilisationByDepartment,
+} from "@/modules/analytics/components/charts";
 
 export const metadata: Metadata = { title: "Reports · AssetFlow" };
 
@@ -49,14 +54,16 @@ export default async function ReportsPage() {
   // value, or which departments are running late.
   await requireRole(["admin", "asset_manager"]);
 
-  const [utilisation, maintenance, problems, ageing, departments, heatmap] = await Promise.all([
-    getUtilisation(),
-    getMaintenanceByCategory(),
-    getProblemAssets(),
-    getAgeingAssets(),
-    getDepartmentSummary(),
-    getBookingHeatmap(),
-  ]);
+  const [utilisation, maintenance, problems, ageing, departments, heatmap, trend] =
+    await Promise.all([
+      getUtilisation(),
+      getMaintenanceByCategory(),
+      getProblemAssets(),
+      getAgeingAssets(),
+      getDepartmentSummary(),
+      getBookingHeatmap(),
+      getMaintenanceTrend(),
+    ]);
 
   const mostUsed = utilisation.filter((u) => u.times_allocated > 0).slice(0, 8);
 
@@ -84,6 +91,39 @@ export default async function ReportsPage() {
       </header>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* ── The two headline charts ───────────────────────────────────────── */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Utilisation by department</CardTitle>
+            <CardDescription>
+              What share of each department&apos;s assets are actually out in someone&apos;s hands.
+              Owning a lot isn&apos;t the same as using it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <UtilisationByDepartment
+              data={departments.map((d) => ({
+                department: d.department,
+                held: d.currently_held,
+                owned: d.owned,
+              }))}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Maintenance frequency</CardTitle>
+            <CardDescription>
+              Requests raised per month. Quiet months show as zero rather than being skipped — a
+              gap would imply a trend that isn&apos;t there.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MaintenanceFrequency data={trend} />
+          </CardContent>
+        </Card>
+
         {/* ── Most used ─────────────────────────────────────────────────────── */}
         <Card>
           <CardHeader>

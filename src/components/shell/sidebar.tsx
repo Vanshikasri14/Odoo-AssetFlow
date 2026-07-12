@@ -6,6 +6,7 @@ import {
   Wrench,
   ClipboardCheck,
   BarChart3,
+  Bell,
   History,
   Users,
 } from "lucide-react";
@@ -41,6 +42,11 @@ const ALL_ITEMS: RawNavItem[] = [
     label: "Reports",
     icon: <BarChart3 className="h-4 w-4" />,
     show: (user) => can.viewAllAnalytics(user),
+  },
+  {
+    href: "/notifications",
+    label: "Notifications",
+    icon: <Bell className="h-4 w-4" />,
   },
   {
     // Everyone can see the activity log — but it SCOPES itself: an Employee sees

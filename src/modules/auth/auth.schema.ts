@@ -26,6 +26,10 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Enter your password."),
 });
 
+export const forgotSchema = z.object({
+  login: z.email("Enter a valid email address.").toLowerCase().trim(),
+});
+
 /**
  * The shape `useActionState` carries back to the form. `fieldErrors` maps a field
  * name to its messages; `error` is for failures that belong to the form as a
@@ -33,6 +37,7 @@ export const loginSchema = z.object({
  */
 export type AuthFormState =
   | {
+      ok?: string;
       error?: string;
       fieldErrors?: Partial<Record<"name" | "login" | "password", string[]>>;
       values?: { name?: string; login?: string };

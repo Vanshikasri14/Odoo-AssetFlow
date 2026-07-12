@@ -17,7 +17,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * without paying for a database round-trip and a wasted render.
  */
 
-const PUBLIC_PATHS = ["/login", "/signup"];
+const PUBLIC_PATHS = ["/login", "/signup", "/forgot-password"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

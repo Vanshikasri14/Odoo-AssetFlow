@@ -198,6 +198,34 @@ export async function getDepartmentSummary(): Promise<DepartmentRow[]> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  MAINTENANCE FREQUENCY OVER TIME  (the line chart)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type MaintenancePoint = { month: string; requests: number };
+
+/**
+ * Requests raised per month, over the last year. `generate_series` produces the
+ * months, so a month with NO maintenance still appears as a zero — otherwise the
+ * line would silently skip quiet months and imply a smooth trend that isn't there.
+ */
+export async function getMaintenanceTrend(): Promise<MaintenancePoint[]> {
+  return db.$queryRaw<MaintenancePoint[]>`
+    SELECT
+      TO_CHAR(m.month, 'Mon') AS month,
+      COALESCE(COUNT(r.id), 0)::int AS requests
+    FROM generate_series(
+      date_trunc('month', NOW()) - interval '11 months',
+      date_trunc('month', NOW()),
+      interval '1 month'
+    ) AS m(month)
+    LEFT JOIN maintenance_request r
+      ON date_trunc('month', r.create_date) = m.month
+    GROUP BY m.month
+    ORDER BY m.month
+  `;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  BOOKING HEATMAP
 // ─────────────────────────────────────────────────────────────────────────────
 
