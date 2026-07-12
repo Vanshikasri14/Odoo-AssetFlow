@@ -3,7 +3,52 @@
 **Enterprise Asset & Resource Management System** — track, allocate, book, maintain
 and audit an organisation's physical assets and shared resources.
 
+### 🔗 Live: **[odoo-assetflow.vercel.app](https://odoo-assetflow.vercel.app)**
+
+Sign in with any of these — password `assetflow123`. The role changes what you see,
+so it's worth trying more than one:
+
+| Account | Role | What it shows you |
+|---|---|---|
+| `admin@assetflow.io` | **Admin** | Everything, plus Organization Setup — the only place roles can be granted |
+| `manager@assetflow.io` | **Asset Manager** | Registers assets, approves transfers and maintenance |
+| `vikram@assetflow.io` | **Department Head** | Approves within their department |
+| `priya@assetflow.io` | **Employee** | Only their own assets — and holds the laptop in the demo below |
+
+> The database sleeps when idle (free tier), so **the very first request after a quiet
+> period takes a second or two**. Load it once, then it's fast.
+
 Built for the Odoo hackathon. Next.js 16 · React 19 · TypeScript · Prisma · PostgreSQL.
+
+---
+
+## Try the four rules yourself
+
+The interesting part of this app isn't the CRUD — it's what it *refuses* to do.
+
+1. **Roles can't be self-assigned.** Sign up at
+   [/signup](https://odoo-assetflow.vercel.app/signup). There is no role field, and
+   the action never reads one. You land as an Employee. Only an Admin can promote you,
+   from the Employee Directory.
+
+2. **An asset can't be held by two people.** Sign in as the Asset Manager, go to
+   Allocations, tick *"include assets that are already held"*, and try to allocate
+   **AF-0101** (Priya's MacBook) to Raj. It refuses, *names Priya*, and offers a
+   **Transfer Request** — which is what the brief actually asks for.
+
+3. **A room can't be double-booked.** Room B2 is booked 09:00–10:00 today. Request
+   **09:30–10:30** → rejected. Request **10:00–11:00** → accepted. Half-open intervals:
+   slots that touch don't overlap.
+
+4. **Repairs need approval first.** Raise a maintenance request on an allocated asset —
+   it stays *Allocated*. Approve it as an Asset Manager, and only *then* does the asset
+   flip to *Under Maintenance*.
+
+Rules 2 and 3 are enforced by **Postgres itself**, not by application code. Prove it:
+
+```bash
+npx tsx scripts/verify-rules.ts     # attacks the tables directly, bypassing every guard
+```
 
 ---
 
@@ -21,24 +66,24 @@ falls out of that design for free.
 
 ---
 
-## Quick start
+## Running it locally
 
 ```bash
 npm install
-cp .env.example .env      # add your Neon connection strings
-npm run db:setup          # push schema + apply constraints + seed
+cp .env.example .env      # add your Postgres connection string
+npm run db:setup          # push schema → apply constraints → seed
 npm run dev
 ```
 
-Then sign in with any seeded account — password `assetflow123`:
+`db:setup` seeds a plausible organisation: 12 people across 5 departments, 30 assets,
+51 bookings, maintenance in three different states, and an audit cycle mid-flight — so
+every screen has something real on it the moment you open it. Same accounts as above,
+same password.
 
-| Account | Name | Role |
-|---|---|---|
-| `admin@assetflow.io` | Aarav Mehta | Admin |
-| `manager@assetflow.io` | Neha Kulkarni | Asset Manager |
-| `vikram@assetflow.io` | Vikram Rao | Department Head (IT) |
-| `priya@assetflow.io` | Priya Sharma | Employee |
-| `raj@assetflow.io` | Raj Malhotra | Employee |
+⚠️ **Read the `DATABASE_URL` comment in `.env.example` before you paste one in.** Using
+Neon's *pooled* endpoint instead of the direct one costs ~300 ms on every query — we
+measured 382 ms vs 72 ms — which turned every click into a two-second wait until we
+caught it.
 
 ---
 
