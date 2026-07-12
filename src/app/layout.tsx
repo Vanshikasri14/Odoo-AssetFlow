@@ -14,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AssetFlow",
-  description: "Enterprise Asset & Resource Management System",
+  title: "AssetFlow — Enterprise Asset & Resource Management",
+  description:
+    "Track, allocate, book, maintain and audit an organisation's physical assets and shared resources.",
 };
 
 export default function RootLayout({
