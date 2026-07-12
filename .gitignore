@@ -30,8 +30,16 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files — never commit real credentials.
+# .env.example is the template and carries no secrets, so it is opted back in.
 .env*
+!.env.example
+
+# internal team docs — task splits, the brief PDF, agent notes.
+# Not for the public repo.
+/docs/
+CLAUDE.md
+AGENTS.md
 
 # vercel
 .vercel

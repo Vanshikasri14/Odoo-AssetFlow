@@ -1,0 +1,648 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  AssetFlow — Enterprise Asset & Resource Management System
+//  Database schema, modelled on Odoo ORM conventions.
+//
+//  Conventions adopted from Odoo (see docs/DATABASE.md for rationale):
+//    • Table names are snake_case, prefixed by their module:
+//        res_*    → base / identity     hr_*     → organisation
+//        asset_*  → asset module        audit_*  → audit module
+//        mail_*   → messaging (chatter) ir_*     → infrastructure
+//    • Every business table carries Odoo's audit columns:
+//        create_date, write_date, create_uid, write_uid
+//    • Records are ARCHIVED (active = false), never hard-deleted.
+//    • Many2one columns end in `_id`; Many2many join tables end in `_rel`.
+//    • Child/detail tables end in `_line` (e.g. audit_line).
+//    • Workflow models expose a `state` selection column.
+//    • Human-readable codes (AF-0001) are issued by ir_sequence, not by
+//      COUNT(*)+1 — see modules/core/sequence.service.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  /// Pooled (PgBouncer) — what the running app uses.
+  url       = env("DATABASE_URL")
+  /// Direct — migrations take advisory locks, which the pooler won't pass through.
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SELECTION FIELDS (Odoo `selection` → Postgres native ENUM)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Roles are granted by an Admin from the Employee Directory.
+/// `employee` is the ONLY value a signup can ever produce.
+enum UserRole {
+  admin
+  asset_manager
+  dept_head
+  employee
+
+  @@map("user_role")
+}
+
+/// The asset lifecycle state machine. Legal transitions are declared in
+/// modules/asset/lifecycle.ts — never mutate `state` outside that module.
+enum AssetState {
+  available
+  allocated
+  reserved
+  under_maintenance
+  lost
+  retired
+  disposed
+
+  @@map("asset_state")
+}
+
+enum AssetCondition {
+  new
+  good
+  fair
+  poor
+  damaged
+
+  @@map("asset_condition")
+}
+
+enum AllocationState {
+  active
+  returned
+
+  @@map("allocation_state")
+}
+
+enum TransferState {
+  pending
+  approved
+  rejected
+  cancelled
+
+  @@map("transfer_state")
+}
+
+/// NOTE: the brief lists booking statuses as Upcoming / Ongoing / Completed /
+/// Cancelled. Only `cancelled` is a real persisted decision — the other three
+/// are functions of (now, start, end) and are DERIVED on read
+/// (modules/booking/booking.model.ts → displayStatus). Persisting them would
+/// require a cron and would go stale the moment it failed.
+enum BookingState {
+  confirmed
+  cancelled
+
+  @@map("booking_state")
+}
+
+enum MaintenanceState {
+  pending
+  approved
+  rejected
+  assigned
+  in_progress
+  resolved
+  cancelled
+
+  @@map("maintenance_state")
+}
+
+enum MaintenancePriority {
+  low
+  medium
+  high
+  urgent
+
+  @@map("maintenance_priority")
+}
+
+enum AuditCycleState {
+  draft
+  in_progress
+  closed
+
+  @@map("audit_cycle_state")
+}
+
+enum AuditResult {
+  pending
+  verified
+  missing
+  damaged
+
+  @@map("audit_result")
+}
+
+enum NotificationType {
+  asset_assigned
+  transfer_requested
+  transfer_approved
+  transfer_rejected
+  maintenance_requested
+  maintenance_approved
+  maintenance_rejected
+  maintenance_resolved
+  booking_confirmed
+  booking_cancelled
+  booking_reminder
+  overdue_return
+  audit_assigned
+  audit_discrepancy
+  role_changed
+
+  @@map("notification_type")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  res_* — IDENTITY
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Odoo splits identity across res_users (credentials) + res_partner (contact)
+/// + hr_employee (HR record). We deliberately collapse these into one table:
+/// the brief's "Employee Directory" is exactly this list, and a 3-way join for
+/// every lookup would buy us nothing at this scope. Documented, not accidental.
+model ResUsers {
+  id       Int      @id @default(autoincrement())
+  name     String
+  login    String   @unique /// email — the credential
+  password String /// bcrypt hash, cost 10
+  role     UserRole @default(employee)
+
+  departmentId Int?    @map("department_id")
+  jobTitle     String? @map("job_title")
+  phone        String?
+
+  /// Odoo archiving: deactivated users keep their history and FKs intact.
+  active Boolean @default(true)
+
+  createDate DateTime @default(now()) @map("create_date")
+  writeDate  DateTime @updatedAt      @map("write_date")
+  createUid  Int?     @map("create_uid")
+  writeUid   Int?     @map("write_uid")
+
+  department       HrDepartment?      @relation("UserDepartment", fields: [departmentId], references: [id])
+  managedDepts     HrDepartment[]     @relation("DepartmentManager")
+  allocationsHeld  AssetAllocation[]  @relation("AllocationHolder")
+  allocationsMade  AssetAllocation[]  @relation("AllocationCreator")
+  transfersTo      AssetTransferRequest[] @relation("TransferTo")
+  transfersFrom    AssetTransferRequest[] @relation("TransferFrom")
+  transfersRaised  AssetTransferRequest[] @relation("TransferRequester")
+  bookings         ResourceBooking[]
+  maintRaised      MaintenanceRequest[] @relation("MaintRequester")
+  maintAssigned    MaintenanceRequest[] @relation("MaintTechnician")
+  auditCycles      AuditCycleAuditor[]
+  auditLines       AuditLine[]
+  notifications    MailNotification[]
+  messages         MailMessage[]
+
+  @@index([role])
+  @@index([departmentId])
+  @@map("res_users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  hr_* — ORGANISATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+model HrDepartment {
+  id       Int     @id @default(autoincrement())
+  name     String
+  /// Odoo `complete_name`: denormalised "Parent / Child" path, kept in sync by
+  /// the service layer so the hierarchy renders without a recursive CTE.
+  completeName String? @map("complete_name")
+  parentId  Int?   @map("parent_id")
+  managerId Int?   @map("manager_id") /// the Department Head
+  sequence  Int    @default(10)
+  active    Boolean @default(true)
+
+  createDate DateTime @default(now()) @map("create_date")
+  writeDate  DateTime @updatedAt      @map("write_date")
+  createUid  Int?     @map("create_uid")
+  writeUid   Int?     @map("write_uid")
+
+  parent   HrDepartment?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children HrDepartment[] @relation("DepartmentHierarchy")
+  manager  ResUsers?      @relation("DepartmentManager", fields: [managerId], references: [id])
+  members  ResUsers[]     @relation("UserDepartment")
+
+  assets      AssetAsset[]
+  allocations AssetAllocation[] @relation("AllocationHolderDept")
+  auditCycles AuditCycle[]
+
+  @@index([parentId])
+  @@map("hr_department")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  asset_* — ASSET MODULE
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AssetCategory {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  code        String? @unique /// feeds the asset_tag prefix, e.g. "IT" → AF-IT-0001
+  description String?
+  sequence    Int     @default(10)
+  active      Boolean @default(true)
+
+  /// Category-specific fields, per the brief ("warranty period for Electronics").
+  /// Odoo would use a properties/ir.model.fields mechanism; a JSONB blob with a
+  /// declared shape is the pragmatic equivalent and stays queryable.
+  warrantyMonths Int?  @map("warranty_months")
+  customFields   Json? @map("custom_fields")
+
+  createDate DateTime @default(now()) @map("create_date")
+  writeDate  DateTime @updatedAt      @map("write_date")
+  createUid  Int?     @map("create_uid")
+  writeUid   Int?     @map("write_uid")
+
+  assets AssetAsset[]
+
+  @@map("asset_category")
+}
+
+model AssetAsset {
+  id       Int    @id @default(autoincrement())
+  name     String
+  /// Issued by ir_sequence('asset.asset'). Unique, immutable, human-facing.
+  assetTag String @unique @map("asset_tag")
+
+  categoryId   Int  @map("category_id")
+  departmentId Int? @map("department_id") /// owning department (not the holder)
+
+  serialNo        String?  @unique @map("serial_no")
+  acquisitionDate DateTime? @map("acquisition_date") @db.Date
+  /// Kept for ranking/reports ONLY. The brief explicitly excludes accounting.
+  acquisitionCost Decimal? @map("acquisition_cost") @db.Decimal(12, 2)
+
+  condition AssetCondition @default(good)
+  location  String?
+
+  imageUrl String?  @map("image_url")
+  docUrls  String[] @map("doc_urls")
+
+  /// Marks the asset as a shared resource that can be booked by time slot.
+  isBookable Boolean @default(false) @map("is_bookable")
+
+  /// Current lifecycle state. Mutated ONLY via modules/asset/lifecycle.ts.
+  state AssetState @default(available)
+
+  notes  String?
+  active Boolean @default(true)
+
+  createDate DateTime @default(now()) @map("create_date")
+  writeDate  DateTime @updatedAt      @map("write_date")
+  createUid  Int?     @map("create_uid")
+  writeUid   Int?     @map("write_uid")
+
+  category   AssetCategory @relation(fields: [categoryId], references: [id])
+  department HrDepartment? @relation(fields: [departmentId], references: [id])
+
+  allocations AssetAllocation[]
+  transfers   AssetTransferRequest[]
+  bookings    ResourceBooking[]
+  maintenance MaintenanceRequest[]
+  auditLines  AuditLine[]
+
+  @@index([state])
+  @@index([categoryId])
+  @@index([departmentId])
+  @@index([isBookable])
+  @@map("asset_asset")
+}
+
+/// One row per custody episode. The asset's *current* holder is the row with
+/// returned_date IS NULL. History is therefore free — never overwrite a row.
+model AssetAllocation {
+  id      Int @id @default(autoincrement())
+  assetId Int @map("asset_id")
+
+  /// Exactly one of these two is set — enforced by a CHECK constraint in the
+  /// migration (an asset is held by a person OR by a department, never both).
+  holderUserId Int? @map("holder_user_id")
+  holderDeptId Int? @map("holder_dept_id")
+
+  allocatedDate      DateTime  @default(now()) @map("allocated_date")
+  expectedReturnDate DateTime? @map("expected_return_date")
+  returnedDate       DateTime? @map("returned_date")
+
+  /// Captured at check-in, per the brief's return flow.
+  checkinCondition AssetCondition? @map("checkin_condition")
+  checkinNotes     String?         @map("checkin_notes")
+
+  state         AllocationState @default(active)
+  allocatedById Int             @map("allocated_by_id")
+  notes         String?
+
+  createDate DateTime @default(now()) @map("create_date")
+  writeDate  DateTime @updatedAt      @map("write_date")
+  createUid  Int?     @map("create_uid")
+  writeUid   Int?     @map("write_uid")
+
+  asset       AssetAsset    @relation(fields: [assetId], references: [id])
+  holderUser  ResUsers?     @relation("AllocationHolder", fields: [holderUserId], references: [id])
+  holderDept  HrDepartment? @relation("AllocationHolderDept", fields: [holderDeptId], references: [id])
+  allocatedBy ResUsers      @relation("AllocationCreator", fields: [allocatedById], references: [id])
+  transfers   AssetTransferRequest[]
+
+  // ⚠ THE double-allocation rule. Prisma cannot express a PARTIAL unique index,
+  // so it is added as raw SQL in the migration:
+  //   CREATE UNIQUE INDEX asset_allocation_one_active_per_asset
+  //     ON asset_allocation (asset_id) WHERE returned_date IS NULL;
+  // This makes "Priya already holds AF-0114" a database guarantee, not a
+  // race-prone application check.
+  @@index([assetId])
+  @@index([holderUserId])
+  @@index([expectedReturnDate]) /// drives the Overdue Returns dashboard query
+  @@map("asset_allocation")
+}
+
+model AssetTransferRequest {
+  id      Int @id @default(autoincrement())
+  assetId Int @map("asset_id")
+
+  fromUserId    Int? @map("from_user_id") /// current holder (null if dept-held)
+  toUserId      Int  @map("to_user_id")   /// requested new holder
+  requestedById Int  @map("requested_by_id")
+
+  reason String?
+  state  TransferState @default(pending)
+
+  approverId   Int?      @map("approver_id")
+  approvedDate DateTime? @map("approved_date")
+  rejectReason String?   @map("reject_reason")
+
+  /// The allocation this transfer superseded, once approved.
+  allocationId Int? @map("allocation_id")
+
+  createDate DateTime @default(now()) @map("create_date")
+  writeDate  DateTime @updatedAt      @map("write_date")
+  createUid  Int?     @map("create_uid")
+  writeUid   Int?     @map("write_uid")
+
+  asset       AssetAsset       @relation(fields: [assetId], references: [id])
+  fromUser    ResUsers?        @relation("TransferFrom", fields: [fromUserId], references: [id])
+  toUser      ResUsers         @relation("TransferTo", fields: [toUserId], references: [id])
+  requestedBy ResUsers         @relation("TransferRequester", fields: [requestedById], references: [id])
+  allocation  AssetAllocation? @relation(fields: [allocationId], references: [id])
+
+  @@index([assetId])
+  @@index([state])
+  @@map("asset_transfer_request")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  RESOURCE BOOKING
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A bookable asset (is_bookable = true) reserved for a half-open time slot
+/// [start, end). Half-open is what makes 10:00–11:00 legal immediately after
+/// 09:00–10:00, exactly as the brief requires.
+model ResourceBooking {
+  id      Int    @id @default(autoincrement())
+  name    String /// purpose, e.g. "Sprint review"
+  assetId Int    @map("asset_id")
+  userId  Int    @map("user_id")
+
+  startDatetime DateTime @map("start_datetime")
+  endDatetime   DateTime @map("end_datetime")
+
+  state BookingState @default(confirmed)
+  notes String?
+
+  cancelledDate DateTime? @map("cancelled_date")
+  reminderSent  Boolean   @default(false) @map("reminder_sent")
+
+  createDate DateTime @default(now()) @map("create_date")
+  writeDate  DateTime @updatedAt      @map("write_date")
+  createUid  Int?     @map("create_uid")
+  writeUid   Int?     @map("write_uid")
+
+  asset AssetAsset @relation(fields: [assetId], references: [id])
+  user  ResUsers   @relation(fields: [userId], references: [id])
+
+  // ⚠ THE overlap rule, enforced by Postgres itself via a GiST exclusion
+  // constraint (added as raw SQL in the migration):
+  //   ALTER TABLE resource_booking ADD CONSTRAINT resource_booking_no_overlap
+  //     EXCLUDE USING gist (
+  //       asset_id WITH =,
+  //       tsrange(start_datetime, end_datetime, '[)') WITH &&
+  //     ) WHERE (state = 'confirmed');
+  // Two concurrent requests for the same slot CANNOT both win. The service
+  // layer also checks first, purely to return a friendly error message.
+  @@index([assetId, startDatetime])
+  @@index([userId])
+  @@map("resource_booking")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MAINTENANCE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Approval-gated repair workflow. The asset only flips to `under_maintenance`
+/// on APPROVAL — never on request. See modules/maintenance/maintenance.service.ts.
+model MaintenanceRequest {
+  id      Int    @id @default(autoincrement())
+  name    String /// short title
+  assetId Int    @map("asset_id")
+
+  requestedById Int    @map("requested_by_id")
+  description   String
+  priority      MaintenancePriority @default(medium)
+  imageUrl      String? @map("image_url")
+
+  state MaintenanceState @default(pending)
+
+  approverId   Int?      @map("approver_id")
+  approvedDate DateTime? @map("approved_date")
+  rejectReason String?   @map("reject_reason")
+
+  technicianId Int?      @map("technician_id")
+  startedDate  DateTime? @map("started_date")
+  resolvedDate DateTime? @map("resolved_date")
+
+  resolutionNotes String?  @map("resolution_notes")
+  repairCost      Decimal? @map("repair_cost") @db.Decimal(12, 2)
+
+  createDate DateTime @default(now()) @map("create_date")
+  writeDate  DateTime @updatedAt      @map("write_date")
+  createUid  Int?     @map("create_uid")
+  writeUid   Int?     @map("write_uid")
+
+  asset       AssetAsset @relation(fields: [assetId], references: [id])
+  requestedBy ResUsers   @relation("MaintRequester", fields: [requestedById], references: [id])
+  technician  ResUsers?  @relation("MaintTechnician", fields: [technicianId], references: [id])
+
+  @@index([assetId])
+  @@index([state])
+  @@index([priority])
+  @@map("maintenance_request")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  audit_* — AUDIT CYCLES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// An audit CYCLE (not a single form): a scoped, dated campaign with assigned
+/// auditors. Closing it locks the cycle and pushes confirmed-missing assets to
+/// state `lost`.
+model AuditCycle {
+  id   Int    @id @default(autoincrement())
+  name String
+
+  /// Scope — either a department, a location, or both (null = whole org).
+  scopeDepartmentId Int?    @map("scope_department_id")
+  scopeLocation     String? @map("scope_location")
+
+  dateStart DateTime @map("date_start") @db.Date
+  dateEnd   DateTime @map("date_end")   @db.Date
+
+  state      AuditCycleState @default(draft)
+  closedDate DateTime?       @map("closed_date")
+  closedById Int?            @map("closed_by_id")
+
+  createDate DateTime @default(now()) @map("create_date")
+  writeDate  DateTime @updatedAt      @map("write_date")
+  createUid  Int?     @map("create_uid")
+  writeUid   Int?     @map("write_uid")
+
+  scopeDepartment HrDepartment?       @relation(fields: [scopeDepartmentId], references: [id])
+  auditors        AuditCycleAuditor[]
+  lines           AuditLine[]
+
+  @@index([state])
+  @@map("audit_cycle")
+}
+
+/// Odoo Many2many join table: <model_a>_<model_b>_rel.
+model AuditCycleAuditor {
+  auditCycleId Int @map("audit_cycle_id")
+  userId       Int @map("res_users_id")
+
+  cycle   AuditCycle @relation(fields: [auditCycleId], references: [id], onDelete: Cascade)
+  auditor ResUsers   @relation(fields: [userId], references: [id])
+
+  @@id([auditCycleId, userId])
+  @@map("audit_cycle_res_users_rel")
+}
+
+/// Odoo detail/child table (`_line`). One row per asset in the cycle's scope,
+/// materialised when the cycle starts. The discrepancy report is simply
+/// `SELECT * FROM audit_line WHERE result IN ('missing','damaged')`.
+model AuditLine {
+  id           Int @id @default(autoincrement())
+  auditCycleId Int @map("audit_cycle_id")
+  assetId      Int @map("asset_id")
+
+  result    AuditResult @default(pending)
+  auditorId Int?        @map("auditor_id")
+
+  verifiedDate     DateTime?       @map("verified_date")
+  observedCondition AssetCondition? @map("observed_condition")
+  observedLocation  String?         @map("observed_location")
+  notes            String?
+
+  createDate DateTime @default(now()) @map("create_date")
+  writeDate  DateTime @updatedAt      @map("write_date")
+  createUid  Int?     @map("create_uid")
+  writeUid   Int?     @map("write_uid")
+
+  cycle   AuditCycle @relation(fields: [auditCycleId], references: [id], onDelete: Cascade)
+  asset   AssetAsset @relation(fields: [assetId], references: [id])
+  auditor ResUsers?  @relation(fields: [auditorId], references: [id])
+
+  /// An asset appears at most once per cycle.
+  @@unique([auditCycleId, assetId], map: "audit_line_cycle_asset_uniq")
+  @@index([result])
+  @@map("audit_line")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  mail_* — CHATTER: ACTIVITY LOG + NOTIFICATIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Odoo's mail.message / mail.thread, in miniature. A polymorphic log keyed by
+/// (model, res_id). ONE table powers three screens:
+///   • Activity Log        → all rows, newest first
+///   • Per-asset history   → WHERE model='asset.asset' AND res_id = :id
+///   • Audit trail of who-did-what → author_id + create_date
+/// Written inside the same transaction as the state change it describes, so a
+/// rolled-back action can never leave a phantom log entry.
+model MailMessage {
+  id Int @id @default(autoincrement())
+
+  /// Dotted model name, Odoo-style: 'asset.asset', 'maintenance.request', …
+  model String
+  resId Int    @map("res_id")
+
+  /// Machine-readable verb: 'create', 'allocate', 'return', 'approve', …
+  action String
+  /// Human-readable line rendered in the UI.
+  body   String
+  /// Structured before/after payload for the diff view.
+  payload Json?
+
+  authorId Int? @map("author_id")
+
+  createDate DateTime @default(now()) @map("create_date")
+
+  author        ResUsers?          @relation(fields: [authorId], references: [id])
+  notifications MailNotification[]
+
+  @@index([model, resId])
+  @@index([createDate])
+  @@index([authorId])
+  @@map("mail_message")
+}
+
+/// Odoo's mail.notification: the fan-out of a message to a recipient.
+model MailNotification {
+  id     Int @id @default(autoincrement())
+  userId Int @map("user_id") /// recipient
+
+  type  NotificationType
+  title String
+  body  String
+
+  /// Deep-link the bell dropdown jumps to, e.g. /assets/14.
+  actionUrl String? @map("action_url")
+
+  isRead   Boolean   @default(false) @map("is_read")
+  readDate DateTime? @map("read_date")
+
+  messageId Int? @map("message_id")
+
+  createDate DateTime @default(now()) @map("create_date")
+
+  user    ResUsers     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message MailMessage? @relation(fields: [messageId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([createDate])
+  @@map("mail_notification")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ir_* — INFRASTRUCTURE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Odoo's ir.sequence. Issues AF-0001, MR-0007, AUD-0003 … under a row-level
+/// lock, so two concurrent asset registrations can never collide.
+/// The naive `COUNT(*) + 1` alternative is wrong under concurrency AND wrong
+/// after a delete — this is the standard ERP answer.
+model IrSequence {
+  id   Int    @id @default(autoincrement())
+  code String @unique /// 'asset.asset', 'maintenance.request', 'audit.cycle'
+  name String
+
+  prefix          String @default("")
+  padding         Int    @default(4)
+  numberNext      Int    @default(1) @map("number_next")
+  numberIncrement Int    @default(1) @map("number_increment")
+
+  createDate DateTime @default(now()) @map("create_date")
+  writeDate  DateTime @updatedAt      @map("write_date")
+
+  @@map("ir_sequence")
+}
