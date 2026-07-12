@@ -17,3 +17,21 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
  * the message and fan out the notification — all or nothing.
  */
 export type Tx = Prisma.TransactionClient | PrismaClient;
+
+/**
+ * ⚠️ COLD STARTS — read before the demo.
+ *
+ * Neon's free tier suspends the compute after a few minutes of inactivity. The
+ * first request afterwards can land on a connection the pool still believes is
+ * alive, and Prisma throws before the database finishes waking. It recovers on
+ * the very next request.
+ *
+ * We deliberately do NOT retry inside the client: a Prisma extension that wraps
+ * $allOperations breaks the `Tx` type every service depends on, and the trade is
+ * not worth it. The mitigation is operational, not architectural:
+ *
+ *   → Load the app once, a minute before demoing it. That's it.
+ *
+ * (If this were production, the fix would be a health-check ping keeping the
+ * compute warm, or a paid tier that doesn't suspend.)
+ */
