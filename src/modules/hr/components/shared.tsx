@@ -5,7 +5,7 @@
  * result banner.
  */
 import type { ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
+import { Badge, statusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/utils";
 
 export function Field({
@@ -60,14 +60,7 @@ export function Banner({ ok, error }: { ok?: string; error?: string }) {
 
 export function ActivePill({ active }: { active: boolean }) {
   return (
-    <Badge
-      className={
-        active
-          ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-500/30"
-          : undefined
-      }
-      variant={active ? undefined : "secondary"}
-    >
+    <Badge className={statusPill(active ? "emerald" : "zinc")}>
       {active ? "Active" : "Inactive"}
     </Badge>
   );

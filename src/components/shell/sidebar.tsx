@@ -10,8 +10,10 @@ import {
   History,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 import type { SessionUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
+import { Logo } from "@/components/brand/logo";
 import { SidebarNav, type NavLink } from "./sidebar-nav";
 
 type RawNavItem = NavLink & { show?: (user: SessionUser) => boolean };
@@ -65,17 +67,32 @@ const ALL_ITEMS: RawNavItem[] = [
   },
 ];
 
-export function Sidebar({ user }: { user: SessionUser }) {
-  const items: NavLink[] = ALL_ITEMS.filter((item) => !item.show || item.show(user)).map(
+/**
+ * The nav a given user is allowed to see.
+ *
+ * Exported because BOTH the desktop sidebar and the mobile drawer need it, and
+ * the filtering reads `can.*` from `@/lib/rbac`, which is server-only. Computing
+ * it once here — in a Server Component — and passing the result down keeps the
+ * role logic off the client entirely: the browser never receives the list of
+ * links it wasn't allowed to have.
+ */
+export function navItemsFor(user: SessionUser): NavLink[] {
+  return ALL_ITEMS.filter((item) => !item.show || item.show(user)).map(
     ({ href, label, icon }) => ({ href, label, icon }),
   );
+}
 
+/** Desktop only. Below `lg` this is gone entirely and MobileNav takes over. */
+export function Sidebar({ user }: { user: SessionUser }) {
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="flex h-16 items-center px-6 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-        AssetFlow
-      </div>
-      <SidebarNav items={items} />
+    <aside className="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white lg:flex dark:border-zinc-800 dark:bg-zinc-950">
+      <Link
+        href="/dashboard"
+        className="flex h-16 items-center px-6 transition-opacity hover:opacity-80"
+      >
+        <Logo />
+      </Link>
+      <SidebarNav items={navItemsFor(user)} />
     </aside>
   );
 }

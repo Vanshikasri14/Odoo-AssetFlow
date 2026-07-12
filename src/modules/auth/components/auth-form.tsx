@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
+import { FullLogo } from "@/components/brand/logo";
 import type { AuthFormState } from "../auth.schema";
 
 type Props = {
@@ -26,11 +27,8 @@ export function AuthForm({ mode, action }: Props) {
   return (
     <div className="w-full max-w-sm">
       <div className="mb-8">
-        <div className="mb-6 flex items-center gap-2.5">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-zinc-900 text-sm font-bold text-white">
-            AF
-          </div>
-          <span className="text-lg font-semibold tracking-tight text-zinc-900">AssetFlow</span>
+        <div className="mb-7">
+          <FullLogo className="w-52" />
         </div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
           {isSignup ? "Create your account" : "Sign in"}

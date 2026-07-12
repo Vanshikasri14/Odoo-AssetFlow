@@ -1,4 +1,5 @@
 import { AssetState } from "@prisma/client";
+import { statusPill } from "@/components/ui/badge";
 import type { Tx } from "@/lib/db";
 import { IllegalTransitionError } from "@/modules/core/errors";
 import { logMessage, MODEL } from "@/modules/core/chatter.service";
@@ -141,25 +142,22 @@ export const LABEL: Record<AssetState, string> = {
 };
 
 /**
- * Tailwind classes for the status pill. Pass to the design system's <Badge> as
- * `className`, so that "Under Maintenance" is the same amber on the dashboard,
- * the registry, the maintenance queue and the audit checklist — forever, without
- * anyone having to coordinate.
+ * The status pill for every screen.
+ *
+ * Colour is assigned by MEANING, not by variety: green = nothing to do here,
+ * blue = someone has it, amber = it's blocked on a human, red = something is
+ * wrong, grey = it's out of the story. That's why `retired` and `disposed` share
+ * a tone — the distinction matters to the ledger, not to someone scanning a
+ * table for a problem.
  *
  *   <Badge className={BADGE[asset.state]}>{LABEL[asset.state]}</Badge>
  */
 export const BADGE: Record<AssetState, string> = {
-  available:
-    "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-500/30",
-  allocated:
-    "bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-500/30",
-  reserved:
-    "bg-violet-50 text-violet-700 ring-violet-600/20 dark:bg-violet-950 dark:text-violet-300 dark:ring-violet-500/30",
-  under_maintenance:
-    "bg-amber-50 text-amber-800 ring-amber-600/20 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-500/30",
-  lost: "bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-950 dark:text-red-300 dark:ring-red-500/30",
-  retired:
-    "bg-zinc-100 text-zinc-700 ring-zinc-500/20 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-400/20",
-  disposed:
-    "bg-zinc-100 text-zinc-500 ring-zinc-400/20 dark:bg-zinc-900 dark:text-zinc-500 dark:ring-zinc-600/20",
+  available: statusPill("emerald"),
+  allocated: statusPill("blue"),
+  reserved: statusPill("violet"),
+  under_maintenance: statusPill("amber"),
+  lost: statusPill("red"),
+  retired: statusPill("zinc"),
+  disposed: statusPill("zinc"),
 };

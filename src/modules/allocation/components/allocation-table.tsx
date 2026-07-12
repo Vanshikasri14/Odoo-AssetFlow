@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CONDITION_LABEL } from "@/modules/asset/asset.schema";
+import { AssetThumb } from "@/modules/asset/components/asset-thumb";
 import { Banner, Field } from "@/modules/hr/components/shared";
 import { returnAsset } from "../allocation.actions";
 
@@ -93,11 +94,16 @@ export function AllocationTable({
             return (
               <TableRow key={a.id}>
                 <TableCell>
-                  <Link href={`/assets/${a.asset.id}`} className="group">
-                    <div className="font-mono text-xs text-zinc-500">{a.asset.assetTag}</div>
-                    <div className="font-medium text-zinc-900 group-hover:underline dark:text-zinc-50">
-                      {a.asset.name}
-                    </div>
+                  <Link href={`/assets/${a.asset.id}`} className="group flex items-center gap-3">
+                    <AssetThumb name={a.asset.name} size={36} />
+                    <span>
+                      <span className="block font-mono text-xs text-zinc-500">
+                        {a.asset.assetTag}
+                      </span>
+                      <span className="block font-medium text-zinc-900 group-hover:underline dark:text-zinc-50">
+                        {a.asset.name}
+                      </span>
+                    </span>
                   </Link>
                 </TableCell>
 

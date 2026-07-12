@@ -12,6 +12,7 @@ import { BADGE, LABEL } from "@/modules/asset/lifecycle";
 import { assetFilterSchema } from "@/modules/asset/asset.schema";
 import { getFilterOptions, searchAssets } from "@/modules/asset/asset.service";
 import { AssetFilters } from "@/modules/asset/components/asset-filters";
+import { AssetThumb } from "@/modules/asset/components/asset-thumb";
 
 export const metadata: Metadata = { title: "Assets · AssetFlow" };
 
@@ -108,19 +109,29 @@ export default async function AssetsPage({
                       </TableCell>
 
                       <TableCell>
-                        <Link href={`/assets/${a.id}`} className="group">
-                          <div className="flex items-center gap-1.5 font-medium text-zinc-900 group-hover:underline dark:text-zinc-50">
-                            {a.name}
-                            {a.isBookable && (
-                              <CalendarClock
-                                className="h-3.5 w-3.5 text-zinc-400"
-                                aria-label="Bookable resource"
-                              />
+                        <Link href={`/assets/${a.id}`} className="group flex items-center gap-3">
+                          <AssetThumb
+                            name={a.name}
+                            category={a.category.name}
+                            imageUrl={a.imageUrl}
+                            size={38}
+                          />
+                          <span className="min-w-0">
+                            <span className="flex items-center gap-1.5 font-medium text-zinc-900 group-hover:underline dark:text-zinc-50">
+                              {a.name}
+                              {a.isBookable && (
+                                <CalendarClock
+                                  className="h-3.5 w-3.5 shrink-0 text-zinc-400"
+                                  aria-label="Bookable resource"
+                                />
+                              )}
+                            </span>
+                            {a.serialNo && (
+                              <span className="block font-mono text-xs text-zinc-400">
+                                {a.serialNo}
+                              </span>
                             )}
-                          </div>
-                          {a.serialNo && (
-                            <div className="font-mono text-xs text-zinc-400">{a.serialNo}</div>
-                          )}
+                          </span>
                         </Link>
                       </TableCell>
 

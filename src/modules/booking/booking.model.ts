@@ -1,4 +1,5 @@
 import type { BookingState } from "@prisma/client";
+import { statusPill } from "@/components/ui/badge";
 
 /**
  * Only `cancelled` is a persisted decision. Upcoming / Ongoing / Completed are
@@ -19,8 +20,10 @@ export function displayStatus(
 }
 
 export const DISPLAY_STATUS_BADGE: Record<DisplayStatus, string> = {
-  Cancelled: "bg-slate-100 text-slate-500 ring-slate-400/20",
-  Upcoming: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-  Ongoing: "bg-blue-50 text-blue-700 ring-blue-600/20",
-  Completed: "bg-zinc-100 text-zinc-600 ring-zinc-400/20",
+  // Ongoing means "happening right now", so it takes the live colour. Upcoming
+  // is the calmer green; Completed and Cancelled recede to grey.
+  Ongoing: statusPill("blue"),
+  Upcoming: statusPill("emerald"),
+  Completed: statusPill("zinc"),
+  Cancelled: statusPill("zinc"),
 };

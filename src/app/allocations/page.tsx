@@ -1,15 +1,18 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { cn } from "@/components/ui/utils";
+import type { SessionUser } from "@/lib/auth";
 import { can, requireUser } from "@/lib/rbac";
 import {
+  listAllAssetsBrief,
   listAllocatableAssets,
   listAllocations,
   listHolders,
   listTransfers,
 } from "@/modules/allocation/allocation.service";
-import { searchAssets } from "@/modules/asset/asset.service";
 import { AllocateForm } from "@/modules/allocation/components/allocate-form";
 import { AllocationTable } from "@/modules/allocation/components/allocation-table";
 import { TransferTable } from "@/modules/allocation/components/transfer-table";
@@ -25,6 +28,84 @@ const TABS = [
 
 type Tab = (typeof TABS)[number]["key"];
 
+/**
+ * The tab's data — fetched inside a Suspense boundary, not in the page.
+ *
+ * Switching tabs changes a SEARCH PARAM, not a route. Next does not re-run
+ * `loading.tsx` for search-param changes, so the old table just sat there,
+ * frozen, until the new data arrived — which on a database ~80ms away is long
+ * enough to look broken.
+ *
+ * Wrapping this in `<Suspense key={tab}>` gives every tab its own boundary: the
+ * key changes, the boundary remounts, the skeleton appears immediately, and the
+ * real table streams in behind it. The data doesn't arrive any sooner — but the
+ * click now visibly does something, which is the whole complaint.
+ */
+async function TabContent({ tab, me }: { tab: Tab; me: SessionUser }) {
+  const canWrite = can.writeAssets(me);
+  const canApprove = can.approve(me);
+
+  const [transfers, overdue, holders, allocatable, everyAsset, tabRows] = await Promise.all([
+    listTransfers(),
+    listAllocations("overdue"),
+    listHolders(),
+    listAllocatableAssets(),
+    canWrite ? listAllAssetsBrief() : Promise.resolve([]),
+    tab === "transfers" || tab === "overdue"
+      ? Promise.resolve([])
+      : listAllocations(tab === "returned" ? "returned" : "active"),
+  ]);
+
+  const rows = tab === "transfers" ? [] : tab === "overdue" ? overdue : tabRows;
+
+  return (
+    <div
+      className={cn(
+        "grid gap-6",
+        canWrite && tab !== "transfers" && "lg:grid-cols-[minmax(0,1fr)_380px]",
+      )}
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle>{TABS.find((t) => t.key === tab)!.label}</CardTitle>
+          {tab === "overdue" && (
+            <CardDescription>
+              Past their expected return date. Derived live from the data — never a stale flag.
+            </CardDescription>
+          )}
+          {tab === "transfers" && (
+            <CardDescription>
+              Requested → Approved → Re-allocated. Approving closes the old custody row and opens a
+              new one, atomically.
+            </CardDescription>
+          )}
+        </CardHeader>
+
+        <CardContent>
+          {tab === "transfers" ? (
+            <TransferTable transfers={transfers} canApprove={canApprove} />
+          ) : (
+            <AllocationTable
+              allocations={rows}
+              scope={tab === "returned" ? "returned" : tab === "overdue" ? "overdue" : "active"}
+              canReturn={canApprove}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      {canWrite && tab !== "transfers" && (
+        <AllocateForm
+          assets={allocatable}
+          allAssets={everyAsset}
+          users={holders.users}
+          departments={holders.departments}
+        />
+      )}
+    </div>
+  );
+}
+
 export default async function AllocationsPage({
   searchParams,
 }: {
@@ -33,28 +114,6 @@ export default async function AllocationsPage({
   const me = await requireUser();
   const { tab } = await searchParams;
   const active: Tab = TABS.some((t) => t.key === tab) ? (tab as Tab) : "active";
-
-  const canWrite = can.writeAssets(me);
-  const canApprove = can.approve(me);
-
-  const [transfers, overdue, holders, allocatable, everyAsset] = await Promise.all([
-    listTransfers(),
-    listAllocations("overdue"),
-    listHolders(),
-    listAllocatableAssets(),
-    // The conflict path needs to be able to *pick* an already-held asset — that
-    // is the whole point of the demo.
-    canWrite ? searchAssets({ q: "" }) : Promise.resolve([]),
-  ]);
-
-  const rows =
-    active === "transfers"
-      ? []
-      : active === "overdue"
-        ? overdue
-        : await listAllocations(active === "returned" ? "returned" : "active");
-
-  const pendingCount = transfers.filter((t) => t.state === "pending").length;
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -67,88 +126,37 @@ export default async function AllocationsPage({
         </p>
       </header>
 
-      <nav className="mb-6 inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-900">
-        {TABS.map((t) => {
-          const count =
-            t.key === "overdue" ? overdue.length : t.key === "transfers" ? pendingCount : 0;
-
-          return (
-            <Link
-              key={t.key}
-              href={`/allocations?tab=${t.key}`}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                active === t.key
-                  ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50"
-                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200",
-              )}
-            >
-              {t.label}
-              {count > 0 && (
-                <span
-                  className={cn(
-                    "rounded-full px-1.5 py-0.5 text-xs tabular-nums",
-                    t.key === "overdue"
-                      ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
-                      : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-                  )}
-                >
-                  {count}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+      {/* The tab bar needs no data, so it paints instantly and stays put — the
+          clicked tab highlights straight away while the content streams below. */}
+      <nav className="mb-6 flex w-full items-center gap-1 overflow-x-auto rounded-lg bg-zinc-100 p-1 sm:inline-flex sm:w-auto dark:bg-zinc-900">
+        {TABS.map((t) => (
+          <Link
+            key={t.key}
+            href={`/allocations?tab=${t.key}`}
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              active === t.key
+                ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50"
+                : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200",
+            )}
+          >
+            {t.label}
+          </Link>
+        ))}
       </nav>
 
-      <div
-        className={cn(
-          "grid gap-6",
-          canWrite && active !== "transfers" && "lg:grid-cols-[minmax(0,1fr)_380px]",
-        )}
+      <Suspense
+        key={active}
+        fallback={
+          <Card>
+            <CardContent className="p-6">
+              <TableSkeleton rows={6} cols={5} />
+            </CardContent>
+          </Card>
+        }
       >
-        <Card>
-          <CardHeader>
-            <CardTitle>{TABS.find((t) => t.key === active)!.label}</CardTitle>
-            {active === "overdue" && (
-              <CardDescription>
-                Past their expected return date. Derived live from the data — never a stale flag.
-              </CardDescription>
-            )}
-            {active === "transfers" && (
-              <CardDescription>
-                Requested → Approved → Re-allocated. Approving closes the old custody row and opens
-                a new one, atomically.
-              </CardDescription>
-            )}
-          </CardHeader>
-
-          <CardContent>
-            {active === "transfers" ? (
-              <TransferTable transfers={transfers} canApprove={canApprove} />
-            ) : (
-              <AllocationTable
-                allocations={rows}
-                scope={active === "returned" ? "returned" : active === "overdue" ? "overdue" : "active"}
-                canReturn={canApprove}
-              />
-            )}
-          </CardContent>
-        </Card>
-
-        {canWrite && active !== "transfers" && (
-          <AllocateForm
-            assets={allocatable}
-            allAssets={everyAsset.map((a) => ({
-              id: a.id,
-              assetTag: a.assetTag,
-              name: a.name,
-            }))}
-            users={holders.users}
-            departments={holders.departments}
-          />
-        )}
-      </div>
+        <TabContent tab={active} me={me} />
+      </Suspense>
     </div>
   );
 }

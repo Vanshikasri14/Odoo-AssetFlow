@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { TransferState } from "@prisma/client";
-import { Badge } from "@/components/ui/badge";
+import { Badge, statusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -25,11 +25,10 @@ type Transfer = {
 };
 
 const STATE_STYLE: Record<TransferState, string> = {
-  pending: "bg-amber-50 text-amber-800 ring-amber-600/20 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-500/30",
-  approved:
-    "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-500/30",
-  rejected: "bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-950 dark:text-red-300 dark:ring-red-500/30",
-  cancelled: "",
+  pending: statusPill("amber"),
+  approved: statusPill("emerald"),
+  rejected: statusPill("red"),
+  cancelled: statusPill("zinc"),
 };
 
 function date(d: Date) {

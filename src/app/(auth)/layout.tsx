@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { LogoMark } from "@/components/brand/logo";
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
   // Already signed in? The login screen isn't useful to you.
@@ -15,6 +16,8 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
       <aside className="relative hidden overflow-hidden bg-zinc-900 lg:block">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(148,163,184,0.15),transparent_60%)]" />
         <div className="relative flex h-full flex-col justify-center px-14">
+          <LogoMark size={52} className="mb-8" />
+
           <h2 className="max-w-md text-3xl font-semibold leading-tight tracking-tight text-white">
             Know who holds what, where it is, and what condition it&apos;s in.
           </h2>

@@ -11,6 +11,7 @@ import { can, requireUser } from "@/lib/rbac";
 import { BADGE, LABEL } from "@/modules/asset/lifecycle";
 import { CONDITION_LABEL } from "@/modules/asset/asset.schema";
 import { getAsset, getAssetHistory } from "@/modules/asset/asset.service";
+import { AssetThumb } from "@/modules/asset/components/asset-thumb";
 
 export const metadata: Metadata = { title: "Asset · AssetFlow" };
 
@@ -76,7 +77,15 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
       </Link>
 
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="flex items-start gap-4">
+          <AssetThumb
+            name={asset.name}
+            category={asset.category.name}
+            imageUrl={asset.imageUrl}
+            size={64}
+            className="mt-1"
+          />
+          <div>
           <div className="flex flex-wrap items-center gap-2.5">
             <code className="rounded bg-zinc-100 px-2 py-0.5 font-mono text-sm text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
               {asset.assetTag}
@@ -105,6 +114,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
               )}
             </p>
           )}
+          </div>
         </div>
 
         {can.writeAssets(me) && (

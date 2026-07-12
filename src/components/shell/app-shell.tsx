@@ -16,10 +16,17 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
+      {/* Desktop nav. Hidden below `lg` — MobileNav (in the header) takes over. */}
       <Sidebar user={user} />
-      <div className="flex flex-1 flex-col">
+
+      {/* `min-w-0` is load-bearing: without it a flex child refuses to shrink
+          below its content's intrinsic width, so one wide table would push the
+          whole layout out and give the page a horizontal scrollbar on mobile. */}
+      <div className="flex min-w-0 flex-1 flex-col">
         <Header user={user} />
-        <main className="flex-1 overflow-y-auto bg-zinc-50 p-6 dark:bg-black">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-zinc-50 p-4 lg:p-6 dark:bg-black">
+          {children}
+        </main>
       </div>
     </div>
   );

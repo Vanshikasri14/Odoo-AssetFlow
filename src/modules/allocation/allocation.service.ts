@@ -509,6 +509,24 @@ export async function listAllocatableAssets() {
   });
 }
 
+/**
+ * Every asset, as a bare {id, tag, name} — for the "include assets that are
+ * already held" toggle on the allocate form, which is how you trigger the
+ * conflict path on purpose.
+ *
+ * This used to call searchAssets(), which drags in each asset's category,
+ * department and open allocations. Three joins across thirty rows, to populate a
+ * <select> that renders two strings. On a database ~80ms away that was most of a
+ * second, on a page that doesn't need any of it.
+ */
+export async function listAllAssetsBrief() {
+  return db.assetAsset.findMany({
+    where: { active: true },
+    orderBy: { assetTag: "asc" },
+    select: { id: true, assetTag: true, name: true },
+  });
+}
+
 export async function listHolders() {
   const [users, departments] = await Promise.all([
     db.resUsers.findMany({

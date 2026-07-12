@@ -1,11 +1,25 @@
 @import "tailwindcss";
 
-/* Dark theme is the app's one look now — driven by the `dark` class on
-   <html> (layout.tsx), not the OS preference, so it renders the same for
-   every viewer regardless of their system setting. */
+/*
+ * Tailwind v4 resolves `dark:` against `prefers-color-scheme` by default — which
+ * means the operating system decides and the user cannot. Keying the variant off
+ * a `.dark` class on <html> instead puts the choice in our hands, so the toggle
+ * in the header can drive it.
+ *
+ * Dark is the app's intended look and the DEFAULT (see the blocking script in
+ * layout.tsx) — but it's now a default, not a cage: someone who wants light can
+ * have it, and their choice is remembered.
+ */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+.dark {
+  /* A cool, faintly green-tinted near-black rather than flat zinc — it sits
+     better under the mint accent the buttons and nav use. */
   --background: #0a0e0f;
   --foreground: #ededed;
 }
@@ -13,12 +27,18 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  /* next/font (layout.tsx) defines --font-raleway and --font-geist-mono on
+     <html>; these map them onto Tailwind's font tokens. The names must DIFFER —
+     `--font-sans: var(--font-sans)` is a circular reference that silently
+     resolves to nothing and drops you back to system fonts with no error. */
+  --font-sans: var(--font-raleway);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Was hardcoded to Arial, which silently discarded the webfont layout.tsx goes
+     to the trouble of loading. */
+  font-family: var(--font-raleway), system-ui, sans-serif;
 }
