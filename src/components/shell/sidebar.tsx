@@ -6,6 +6,7 @@ import {
   Wrench,
   ClipboardCheck,
   BarChart3,
+  History,
   Users,
 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
@@ -36,6 +37,13 @@ const ALL_ITEMS: RawNavItem[] = [
     label: "Reports",
     icon: <BarChart3 className="h-4 w-4" />,
     show: (user) => can.viewAllAnalytics(user),
+  },
+  {
+    // Everyone can see the activity log — but it SCOPES itself: an Employee sees
+    // only their own actions, a manager sees the organisation. See listActivity().
+    href: "/activity",
+    label: "Activity",
+    icon: <History className="h-4 w-4" />,
   },
   {
     // The Admin-only master-data screen: departments, categories, and the
