@@ -38,8 +38,10 @@ const ALL_ITEMS: RawNavItem[] = [
     show: (user) => can.viewAllAnalytics(user),
   },
   {
-    href: "/directory",
-    label: "Directory",
+    // The Admin-only master-data screen: departments, categories, and the
+    // employee directory (the one place roles are granted).
+    href: "/organization",
+    label: "Organization",
     icon: <Users className="h-4 w-4" />,
     show: (user) => can.manageOrg(user),
   },

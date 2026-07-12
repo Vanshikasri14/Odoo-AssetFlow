@@ -14,18 +14,18 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <p className="text-sm text-slate-500">Signed in as</p>
-      <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{user.name}</h1>
+      <p className="text-sm text-zinc-500">Signed in as</p>
+      <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900">{user.name}</h1>
 
-      <dl className="mt-6 divide-y divide-slate-200 rounded-xl border border-slate-200">
+      <dl className="mt-6 divide-y divide-zinc-200 rounded-xl border border-zinc-200">
         {[
           ["Email", user.login],
           ["Role", ROLE_LABEL[user.role]],
           ["Department", user.departmentId ? `#${user.departmentId}` : "—"],
         ].map(([k, v]) => (
           <div key={k} className="flex justify-between px-4 py-3 text-sm">
-            <dt className="text-slate-500">{k}</dt>
-            <dd className="font-medium text-slate-900">{v}</dd>
+            <dt className="text-zinc-500">{k}</dt>
+            <dd className="font-medium text-zinc-900">{v}</dd>
           </div>
         ))}
       </dl>
@@ -37,7 +37,7 @@ export default async function DashboardPage() {
       <form action={logout} className="mt-6">
         <button
           type="submit"
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
         >
           Sign out
         </button>

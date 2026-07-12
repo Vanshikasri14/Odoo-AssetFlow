@@ -2,8 +2,13 @@
 
 import { useActionState } from "react";
 import type { UserRole } from "@prisma/client";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { assignDept, promote, toggleEmployee } from "../hr.actions";
-import { Banner, BTN_GHOST, Card, INPUT, Pill } from "./ui";
+import { ActivePill, Banner } from "./shared";
 
 type Employee = {
   id: number;
@@ -23,14 +28,16 @@ const ROLE_LABEL: Record<UserRole, string> = {
   employee: "Employee",
 };
 
-const ROLE_STYLE: Record<UserRole, string> = {
-  admin: "bg-slate-900 text-white ring-slate-900",
-  asset_manager: "bg-blue-50 text-blue-700 ring-blue-600/20",
-  dept_head: "bg-violet-50 text-violet-700 ring-violet-600/20",
-  employee: "bg-slate-100 text-slate-600 ring-slate-400/20",
+const ROLE_STYLE: Partial<Record<UserRole, string>> = {
+  asset_manager: "bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-500/30",
+  dept_head: "bg-violet-50 text-violet-700 ring-violet-600/20 dark:bg-violet-950 dark:text-violet-300 dark:ring-violet-500/30",
 };
 
-/** Roles an Admin may grant. `admin` is absent on purpose — see promoteUser(). */
+/**
+ * The roles an Admin may grant. `admin` is deliberately absent — see
+ * promoteUser() in hr.service.ts. Minting administrators from a form is how one
+ * compromised session becomes a permanent one.
+ */
 const GRANTABLE: UserRole[] = ["employee", "dept_head", "asset_manager"];
 
 export function EmployeeTab({
@@ -49,119 +56,129 @@ export function EmployeeTab({
   const banner = promoteState ?? deptState ?? activeState;
 
   return (
-    <Card
-      title="Employee directory"
-      subtitle="This is the only place in AssetFlow where a role can be granted. Signup always creates an Employee."
-    >
-      <div className="mb-4">
-        <Banner ok={banner?.ok} error={banner?.error} />
-      </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Employee directory</CardTitle>
+        <CardDescription>
+          The only place in AssetFlow where a role can be granted. Signup always creates an Employee.
+        </CardDescription>
+      </CardHeader>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-              <th className="pb-2 font-medium">Employee</th>
-              <th className="pb-2 font-medium">Department</th>
-              <th className="pb-2 font-medium">Role</th>
-              <th className="pb-2 font-medium">Grant role</th>
-              <th className="pb-2 font-medium">Status</th>
-              <th className="pb-2" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
+      <CardContent>
+        <Banner ok={banner?.ok} error={banner?.error} />
+
+        <Table className="mt-3">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Employee</TableHead>
+              <TableHead>Department</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Grant role</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {employees.map((e) => {
               const isMe = e.id === meId;
               const isAdmin = e.role === "admin";
-              // You cannot change your own role, and you cannot touch an admin's.
-              // Both rules are enforced in hr.service.ts — this just hides the
-              // controls so nobody tries.
+              // Both rules are enforced server-side in hr.service.ts; hiding the
+              // controls here just stops people trying.
               const locked = isMe || isAdmin;
 
               return (
-                <tr key={e.id} className={e.active ? "" : "opacity-50"}>
-                  <td className="py-3">
-                    <div className="font-medium text-slate-900">
+                <TableRow key={e.id} className={e.active ? undefined : "opacity-50"}>
+                  <TableCell>
+                    <div className="font-medium text-zinc-900 dark:text-zinc-50">
                       {e.name}
-                      {isMe && <span className="ml-1.5 text-xs font-normal text-slate-400">(you)</span>}
+                      {isMe && <span className="ml-1.5 text-xs font-normal text-zinc-400">(you)</span>}
                     </div>
-                    <div className="text-xs text-slate-400">{e.login}</div>
-                  </td>
+                    <div className="text-xs text-zinc-400">{e.login}</div>
+                  </TableCell>
 
-                  <td className="py-3">
+                  <TableCell>
                     <form action={deptAction} className="flex items-center gap-1.5">
                       <input type="hidden" name="userId" value={e.id} />
-                      <select
+                      <Select
                         name="departmentId"
                         defaultValue={e.departmentId ?? "none"}
-                        className={`${INPUT} !w-40 !py-1 text-xs`}
+                        className="h-8 w-36 text-xs"
                       >
                         <option value="none">—</option>
                         {departments.map((d) => (
-                          <option key={d.id} value={d.id}>{d.name}</option>
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
                         ))}
-                      </select>
-                      <button type="submit" className={BTN_GHOST}>Set</button>
+                      </Select>
+                      <Button type="submit" variant="outline" size="sm">
+                        Set
+                      </Button>
                     </form>
-                  </td>
+                  </TableCell>
 
-                  <td className="py-3">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${ROLE_STYLE[e.role]}`}
+                  <TableCell>
+                    <Badge
+                      variant={isAdmin ? "default" : "secondary"}
+                      className={ROLE_STYLE[e.role]}
                     >
                       {ROLE_LABEL[e.role]}
-                    </span>
-                  </td>
+                    </Badge>
+                  </TableCell>
 
-                  <td className="py-3">
+                  <TableCell>
                     {locked ? (
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-zinc-400">
                         {isMe ? "Cannot change your own role" : "Protected"}
                       </span>
                     ) : (
                       <form action={promoteAction} className="flex items-center gap-1.5">
                         <input type="hidden" name="userId" value={e.id} />
-                        <select
+                        <Select
                           name="role"
                           defaultValue={e.role}
                           disabled={promoting}
-                          className={`${INPUT} !w-40 !py-1 text-xs`}
+                          className="h-8 w-40 text-xs"
                         >
                           {GRANTABLE.map((r) => (
-                            <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+                            <option key={r} value={r}>
+                              {ROLE_LABEL[r]}
+                            </option>
                           ))}
-                        </select>
-                        <button type="submit" disabled={promoting} className={BTN_GHOST}>
+                        </Select>
+                        <Button type="submit" variant="outline" size="sm" disabled={promoting}>
                           Apply
-                        </button>
+                        </Button>
                       </form>
                     )}
-                  </td>
+                  </TableCell>
 
-                  <td className="py-3"><Pill active={e.active} /></td>
+                  <TableCell>
+                    <ActivePill active={e.active} />
+                  </TableCell>
 
-                  <td className="py-3 text-right">
+                  <TableCell>
                     {!isMe && (
-                      <form action={activeAction}>
+                      <form action={activeAction} className="flex justify-end">
                         <input type="hidden" name="userId" value={e.id} />
                         <input type="hidden" name="active" value={String(!e.active)} />
-                        <button type="submit" className={BTN_GHOST}>
+                        <Button type="submit" variant="ghost" size="sm">
                           {e.active ? "Deactivate" : "Restore"}
-                        </button>
+                        </Button>
                       </form>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
 
-      <p className="mt-4 border-t border-slate-100 pt-4 text-xs leading-relaxed text-slate-400">
-        Admin is not grantable from this screen. Minting new administrators through the UI is how
-        one compromised session becomes a permanent one — admins are seeded deliberately.
-      </p>
+        <p className="mt-4 border-t border-zinc-100 pt-4 text-xs leading-relaxed text-zinc-400 dark:border-zinc-800">
+          Admin is not grantable from this screen. Minting new administrators through the UI is how
+          one compromised session becomes a permanent one — admins are seeded deliberately.
+        </p>
+      </CardContent>
     </Card>
   );
 }

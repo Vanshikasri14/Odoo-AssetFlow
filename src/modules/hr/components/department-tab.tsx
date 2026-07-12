@@ -1,8 +1,13 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { saveDepartment, toggleDepartment } from "../hr.actions";
-import { Banner, BTN, BTN_GHOST, Card, Field, INPUT, Pill } from "./ui";
+import { ActivePill, Banner, Field } from "./shared";
 
 type Dept = {
   id: number;
@@ -25,126 +30,147 @@ export function DepartmentTab({ departments, people }: { departments: Dept[]; pe
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <Card title="Departments" subtitle="Deactivating archives the record — history and assets are preserved.">
-        {(toggleState?.ok || toggleState?.error) && (
-          <div className="mb-4">
-            <Banner ok={toggleState.ok} error={toggleState.error} />
-          </div>
-        )}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                <th className="pb-2 font-medium">Department</th>
-                <th className="pb-2 font-medium">Head</th>
-                <th className="pb-2 text-right font-medium">People</th>
-                <th className="pb-2 text-right font-medium">Assets</th>
-                <th className="pb-2 font-medium">Status</th>
-                <th className="pb-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+      <Card>
+        <CardHeader>
+          <CardTitle>Departments</CardTitle>
+          <CardDescription>
+            Deactivating archives the record — assets and history are preserved.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Banner ok={toggleState?.ok} error={toggleState?.error} />
+
+          <Table className="mt-3">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Department</TableHead>
+                <TableHead>Head</TableHead>
+                <TableHead className="text-right">People</TableHead>
+                <TableHead className="text-right">Assets</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {departments.map((d) => (
-                <tr key={d.id} className={d.active ? "" : "opacity-50"}>
-                  <td className="py-2.5">
-                    <div className="font-medium text-slate-900">{d.name}</div>
+                <TableRow key={d.id} className={d.active ? undefined : "opacity-50"}>
+                  <TableCell>
+                    <div className="font-medium text-zinc-900 dark:text-zinc-50">{d.name}</div>
                     {d.parent && (
-                      <div className="text-xs text-slate-400">under {d.parent.name}</div>
+                      <div className="text-xs text-zinc-400">under {d.parent.name}</div>
                     )}
-                  </td>
-                  <td className="py-2.5 text-slate-600">{d.manager?.name ?? "—"}</td>
-                  <td className="py-2.5 text-right tabular-nums text-slate-600">{d._count.members}</td>
-                  <td className="py-2.5 text-right tabular-nums text-slate-600">{d._count.assets}</td>
-                  <td className="py-2.5"><Pill active={d.active} /></td>
-                  <td className="py-2.5 text-right">
+                  </TableCell>
+                  <TableCell>{d.manager?.name ?? "—"}</TableCell>
+                  <TableCell className="text-right tabular-nums">{d._count.members}</TableCell>
+                  <TableCell className="text-right tabular-nums">{d._count.assets}</TableCell>
+                  <TableCell>
+                    <ActivePill active={d.active} />
+                  </TableCell>
+                  <TableCell>
                     <div className="flex justify-end gap-1.5">
-                      <button type="button" className={BTN_GHOST} onClick={() => setEditing(d)}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditing(d)}
+                      >
                         Edit
-                      </button>
+                      </Button>
+                      {/* A form, not an onClick: archiving can be REFUSED (a
+                          department with people in it), and a fire-and-forget
+                          call would drop that refusal on the floor. */}
                       <form action={toggleAction}>
                         <input type="hidden" name="id" value={d.id} />
                         <input type="hidden" name="active" value={String(!d.active)} />
-                        <button type="submit" className={BTN_GHOST}>
+                        <Button type="submit" variant="ghost" size="sm">
                           {d.active ? "Deactivate" : "Restore"}
-                        </button>
+                        </Button>
                       </form>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </CardContent>
       </Card>
 
-      <Card
-        title={editing ? `Edit ${editing.name}` : "New department"}
-        subtitle="A parent department builds the hierarchy."
-      >
-        <form action={action} className="space-y-4" key={editing?.id ?? "new"}>
-          {editing && <input type="hidden" name="id" value={editing.id} />}
+      <Card>
+        <CardHeader>
+          <CardTitle>{editing ? `Edit ${editing.name}` : "New department"}</CardTitle>
+          <CardDescription>A parent department builds the hierarchy.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={action} className="space-y-4" key={editing?.id ?? "new"}>
+            {editing && <input type="hidden" name="id" value={editing.id} />}
 
-          <Field label="Name" htmlFor="name" errors={state?.fieldErrors?.name}>
-            <input
-              id="name"
-              name="name"
-              required
-              defaultValue={editing?.name}
-              disabled={pending}
-              className={INPUT}
-              placeholder="Engineering"
-            />
-          </Field>
+            <Field label="Name" htmlFor="name" errors={state?.fieldErrors?.name}>
+              <Input
+                id="name"
+                name="name"
+                required
+                defaultValue={editing?.name}
+                disabled={pending}
+                placeholder="Engineering"
+              />
+            </Field>
 
-          <Field label="Parent department" htmlFor="parentId" hint="Optional — leave as None for a top-level department.">
-            <select
-              id="parentId"
-              name="parentId"
-              defaultValue={editing?.parentId ?? "none"}
-              disabled={pending}
-              className={INPUT}
+            <Field
+              label="Parent department"
+              htmlFor="parentId"
+              hint="Leave as None for a top-level department."
             >
-              <option value="none">None</option>
-              {departments
-                .filter((d) => d.active && d.id !== editing?.id)
-                .map((d) => (
-                  <option key={d.id} value={d.id}>{d.completeName ?? d.name}</option>
+              <Select
+                id="parentId"
+                name="parentId"
+                defaultValue={editing?.parentId ?? "none"}
+                disabled={pending}
+              >
+                <option value="none">None</option>
+                {departments
+                  .filter((d) => d.active && d.id !== editing?.id)
+                  .map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.completeName ?? d.name}
+                    </option>
+                  ))}
+              </Select>
+            </Field>
+
+            <Field
+              label="Department Head"
+              htmlFor="managerId"
+              hint="Naming an Employee as Head also grants them the Department Head role."
+            >
+              <Select
+                id="managerId"
+                name="managerId"
+                defaultValue={editing?.managerId ?? "none"}
+                disabled={pending}
+              >
+                <option value="none">None</option>
+                {people.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
                 ))}
-            </select>
-          </Field>
+              </Select>
+            </Field>
 
-          <Field
-            label="Department Head"
-            htmlFor="managerId"
-            hint="Promoting an Employee to Head here also grants them the Department Head role."
-          >
-            <select
-              id="managerId"
-              name="managerId"
-              defaultValue={editing?.managerId ?? "none"}
-              disabled={pending}
-              className={INPUT}
-            >
-              <option value="none">None</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </Field>
+            <Banner ok={state?.ok} error={state?.error} />
 
-          <Banner ok={state?.ok} error={state?.error} />
-
-          <div className="flex gap-2">
-            <button type="submit" disabled={pending} className={BTN}>
-              {pending ? "Saving…" : editing ? "Save changes" : "Create department"}
-            </button>
-            {editing && (
-              <button type="button" className={BTN_GHOST} onClick={() => setEditing(null)}>
-                Cancel
-              </button>
-            )}
-          </div>
-        </form>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={pending}>
+                {pending ? "Saving…" : editing ? "Save changes" : "Create department"}
+              </Button>
+              {editing && (
+                <Button type="button" variant="outline" onClick={() => setEditing(null)}>
+                  Cancel
+                </Button>
+              )}
+            </div>
+          </form>
+        </CardContent>
       </Card>
     </div>
   );
