@@ -41,6 +41,11 @@ yarn-error.log*
 CLAUDE.md
 AGENTS.md
 
+# Local dev utility: forges a session cookie so the app's HTTP endpoints can be
+# driven from a terminal to test RBAC. Needs SESSION_SECRET, so it grants nothing
+# you don't already have — but it is a test artifact, not product code.
+/scripts/mint-session.ts
+
 # vercel
 .vercel
 
