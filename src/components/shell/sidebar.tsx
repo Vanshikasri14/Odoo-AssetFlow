@@ -27,10 +27,14 @@ const ALL_ITEMS: RawNavItem[] = [
   { href: "/bookings", label: "Bookings", icon: <CalendarClock className="h-4 w-4" /> },
   { href: "/maintenance", label: "Maintenance", icon: <Wrench className="h-4 w-4" /> },
   {
+    // Shown to EVERYONE, deliberately. The brief lets an Admin assign any
+    // employee as an auditor — and the seed does exactly that (Karthik and Divya
+    // are Employees). Gating this nav item on can.approve() left assigned
+    // auditors with no way to reach the checklist they'd been given.
+    // The page itself decides what each role may do once inside.
     href: "/audits",
     label: "Audits",
     icon: <ClipboardCheck className="h-4 w-4" />,
-    show: (user) => can.approve(user),
   },
   {
     href: "/reports",
