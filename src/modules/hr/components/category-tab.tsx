@@ -1,8 +1,12 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { saveCategory, toggleCategory } from "../hr.actions";
-import { Banner, BTN, BTN_GHOST, Card, Field, INPUT, Pill } from "./ui";
+import { ActivePill, Banner, Field } from "./shared";
 
 type Category = {
   id: number;
@@ -21,122 +25,151 @@ export function CategoryTab({ categories }: { categories: Category[] }) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <Card title="Asset categories" subtitle="Categories drive the registration form and the reports breakdown.">
-        {(toggleState?.ok || toggleState?.error) && (
-          <div className="mb-4">
-            <Banner ok={toggleState.ok} error={toggleState.error} />
-          </div>
-        )}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                <th className="pb-2 font-medium">Category</th>
-                <th className="pb-2 font-medium">Code</th>
-                <th className="pb-2 font-medium">Warranty</th>
-                <th className="pb-2 text-right font-medium">Assets</th>
-                <th className="pb-2 font-medium">Status</th>
-                <th className="pb-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+      <Card>
+        <CardHeader>
+          <CardTitle>Asset categories</CardTitle>
+          <CardDescription>
+            Categories drive the registration form and the reports breakdown.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Banner ok={toggleState?.ok} error={toggleState?.error} />
+
+          <Table className="mt-3">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Category</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead>Warranty</TableHead>
+                <TableHead className="text-right">Assets</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {categories.map((c) => (
-                <tr key={c.id} className={c.active ? "" : "opacity-50"}>
-                  <td className="py-2.5">
-                    <div className="font-medium text-slate-900">{c.name}</div>
+                <TableRow key={c.id} className={c.active ? undefined : "opacity-50"}>
+                  <TableCell>
+                    <div className="font-medium text-zinc-900 dark:text-zinc-50">{c.name}</div>
                     {c.description && (
-                      <div className="max-w-xs truncate text-xs text-slate-400">{c.description}</div>
+                      <div className="max-w-xs truncate text-xs text-zinc-400">{c.description}</div>
                     )}
-                  </td>
-                  <td className="py-2.5">
+                  </TableCell>
+                  <TableCell>
                     {c.code ? (
-                      <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600">
+                      <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                         {c.code}
                       </code>
                     ) : (
-                      <span className="text-slate-400">—</span>
+                      "—"
                     )}
-                  </td>
-                  <td className="py-2.5 text-slate-600">
-                    {c.warrantyMonths ? `${c.warrantyMonths} months` : "—"}
-                  </td>
-                  <td className="py-2.5 text-right tabular-nums text-slate-600">{c._count.assets}</td>
-                  <td className="py-2.5"><Pill active={c.active} /></td>
-                  <td className="py-2.5 text-right">
+                  </TableCell>
+                  <TableCell>{c.warrantyMonths ? `${c.warrantyMonths} months` : "—"}</TableCell>
+                  <TableCell className="text-right tabular-nums">{c._count.assets}</TableCell>
+                  <TableCell>
+                    <ActivePill active={c.active} />
+                  </TableCell>
+                  <TableCell>
                     <div className="flex justify-end gap-1.5">
-                      <button type="button" className={BTN_GHOST} onClick={() => setEditing(c)}>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setEditing(c)}>
                         Edit
-                      </button>
+                      </Button>
                       <form action={toggleAction}>
                         <input type="hidden" name="id" value={c.id} />
                         <input type="hidden" name="active" value={String(!c.active)} />
-                        <button type="submit" className={BTN_GHOST}>
+                        <Button type="submit" variant="ghost" size="sm">
                           {c.active ? "Deactivate" : "Restore"}
-                        </button>
+                        </Button>
                       </form>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </CardContent>
       </Card>
 
-      <Card
-        title={editing ? `Edit ${editing.name}` : "New category"}
-        subtitle="Warranty is the category-specific field from the brief."
-      >
-        <form action={action} className="space-y-4" key={editing?.id ?? "new"}>
-          {editing && <input type="hidden" name="id" value={editing.id} />}
+      <Card>
+        <CardHeader>
+          <CardTitle>{editing ? `Edit ${editing.name}` : "New category"}</CardTitle>
+          <CardDescription>
+            Warranty is the category-specific field called for in the brief.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={action} className="space-y-4" key={editing?.id ?? "new"}>
+            {editing && <input type="hidden" name="id" value={editing.id} />}
 
-          <Field label="Name" htmlFor="name" errors={state?.fieldErrors?.name}>
-            <input
-              id="name" name="name" required defaultValue={editing?.name}
-              disabled={pending} className={INPUT} placeholder="Electronics"
-            />
-          </Field>
+            <Field label="Name" htmlFor="name" errors={state?.fieldErrors?.name}>
+              <Input
+                id="name"
+                name="name"
+                required
+                defaultValue={editing?.name}
+                disabled={pending}
+                placeholder="Electronics"
+              />
+            </Field>
 
-          <Field label="Code" htmlFor="code" errors={state?.fieldErrors?.code} hint="Short prefix, e.g. ELEC.">
-            <input
-              id="code" name="code" defaultValue={editing?.code ?? ""}
-              disabled={pending} className={INPUT} placeholder="ELEC" maxLength={6}
-            />
-          </Field>
+            <Field
+              label="Code"
+              htmlFor="code"
+              errors={state?.fieldErrors?.code}
+              hint="Short prefix, e.g. ELEC."
+            >
+              <Input
+                id="code"
+                name="code"
+                defaultValue={editing?.code ?? ""}
+                disabled={pending}
+                placeholder="ELEC"
+                maxLength={6}
+              />
+            </Field>
 
-          <Field
-            label="Warranty (months)"
-            htmlFor="warrantyMonths"
-            errors={state?.fieldErrors?.warrantyMonths}
-            hint="Leave blank for categories without a warranty, like Furniture."
-          >
-            <input
-              id="warrantyMonths" name="warrantyMonths" type="number" min={0} max={600}
-              defaultValue={editing?.warrantyMonths ?? ""} disabled={pending}
-              className={INPUT} placeholder="24"
-            />
-          </Field>
+            <Field
+              label="Warranty (months)"
+              htmlFor="warrantyMonths"
+              errors={state?.fieldErrors?.warrantyMonths}
+              hint="Blank for categories without one, like Furniture."
+            >
+              <Input
+                id="warrantyMonths"
+                name="warrantyMonths"
+                type="number"
+                min={0}
+                max={600}
+                defaultValue={editing?.warrantyMonths ?? ""}
+                disabled={pending}
+                placeholder="24"
+              />
+            </Field>
 
-          <Field label="Description" htmlFor="description">
-            <input
-              id="description" name="description" defaultValue={editing?.description ?? ""}
-              disabled={pending} className={INPUT} placeholder="Laptops, phones, displays"
-            />
-          </Field>
+            <Field label="Description" htmlFor="description">
+              <Input
+                id="description"
+                name="description"
+                defaultValue={editing?.description ?? ""}
+                disabled={pending}
+                placeholder="Laptops, phones, displays"
+              />
+            </Field>
 
-          <Banner ok={state?.ok} error={state?.error} />
+            <Banner ok={state?.ok} error={state?.error} />
 
-          <div className="flex gap-2">
-            <button type="submit" disabled={pending} className={BTN}>
-              {pending ? "Saving…" : editing ? "Save changes" : "Create category"}
-            </button>
-            {editing && (
-              <button type="button" className={BTN_GHOST} onClick={() => setEditing(null)}>
-                Cancel
-              </button>
-            )}
-          </div>
-        </form>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={pending}>
+                {pending ? "Saving…" : editing ? "Save changes" : "Create category"}
+              </Button>
+              {editing && (
+                <Button type="button" variant="outline" onClick={() => setEditing(null)}>
+                  Cancel
+                </Button>
+              )}
+            </div>
+          </form>
+        </CardContent>
       </Card>
     </div>
   );
